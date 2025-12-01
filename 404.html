@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Xpress Hub | Curated Tech Deals & Everyday Finds</title>
+  <meta name="description" content="Xpress Hub curates trending gadgets and everyday essentials with fast links, clear pricing, and concise reviews to help you shop smarter." />
+  <meta name="keywords" content="deals, gadgets, accessories, smart watch, earbuds, ecommerce" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://xpresszone.github.io/products/" />
+
+  <!-- Open Graph for social cards -->
+  <meta property="og:title" content="Xpress Hub | Curated Tech Deals & Everyday Finds" />
+  <meta property="og:description" content="Browse hand-picked products with clear details, quick filters, and fast outbound links." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://xpresszone.github.io/products/" />
+  <meta property="og:image" content="https://xpresszone.github.io/products/main.png" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Xpress Hub | Curated Tech Deals & Everyday Finds" />
+  <meta name="twitter:description" content="Discover trending gadgets, smart wearables, and everyday accessories updated regularly." />
+  <meta name="twitter:image" content="https://xpresszone.github.io/products/main.png" />
+
+  <meta name="theme-color" content="#111827" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": "Xpress Hub Product Catalog",
+    "description": "Curated collection of trending gadgets and accessories from Xpress Hub.",
+    "url": "https://xpresszone.github.io/products/",
+    "numberOfItems": 4,
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "url": "https://s.click.aliexpress.com/e/_oEurygl",
+        "name": "Cool Gadget"
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "url": "https://example.com/smart-watch",
+        "name": "Smart Watch"
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "url": "https://example.com/wireless-earbuds",
+        "name": "Wireless Earbuds"
+      },
+      {
+        "@type": "ListItem",
+        "position": 4,
+        "url": "https://s.click.aliexpress.com/e/_c3qT3Yfb",
+        "name": "Smartphone IR Remote Control Adapter"
+      }
+    ]
+  }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+  <div class="max-w-6xl mx-auto px-4 py-8" role="main">
+    <!-- Page Title -->
+    <h1 class="text-3xl font-bold mb-2">Xpress Hub: Curated Products</h1>
+    <p class="text-gray-600 mb-6">Browse our hand-picked gadgets and daily essentials. Filter by keyword, scan quick descriptions, and jump straight to trusted retailers.</p>
+
+    <!-- Search -->
+    <label for="searchInput" class="sr-only">Search products</label>
+    <input id="searchInput" type="text" placeholder="Search products..." 
+      class="w-full mb-6 px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-300" aria-label="Search products">
+
+    <!-- Grid -->
+    <div id="productGrid" 
+         class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <!-- Cards are injected via script -->
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination" class="flex justify-center mt-8 space-x-2">
+      <button id="prevBtn" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Prev</button>
+      <button id="nextBtn" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Next</button>
+    </div>
+  </div>
+
+<script>
+  // --- DATA ---
+  const productsPerPage = 8;
+  let currentPage = 1;
+  let filteredProducts = [];
+  const products = [
+    {
+      title: 'Cool Gadget',
+      url: 'https://s.click.aliexpress.com/e/_oEurygl',
+      image: 'https://ae01.alicdn.com/kf/S1ae9ca52afef42f78de0ea152b666b6ca.png_350x350.png',
+      alt: 'Cool Gadget product photo',
+      description: 'Compact multi-tool with quick-charge battery and durable aluminum build.'
+    },
+    {
+      title: 'Smart Watch',
+      url: 'https://example.com/smart-watch',
+      image: 'https://ae01.alicdn.com/kf/S1ae9ca52afef42f78de0ea152b666b6ca.png_350x350.png',
+      alt: 'Smart watch with OLED display',
+      description: 'AMOLED fitness watch with heart-rate tracking, GPS, and 7-day battery life.'
+    },
+    {
+      title: 'Wireless Earbuds',
+      url: 'https://example.com/wireless-earbuds',
+      image: 'https://ae01.alicdn.com/kf/S1ae9ca52afef42f78de0ea152b666b6ca.png_350x350.png',
+      alt: 'Wireless earbuds with charging case',
+      description: 'Low-latency earbuds with ENC microphones, wireless charging case, and IPX5 rating.'
+    },
+    {
+      title: 'Smartphone IR Remote Control Adapter',
+      url: 'https://s.click.aliexpress.com/e/_c3qT3Yfb',
+      image: 'https://ae-pic-a1.aliexpress-media.com/kf/Sdacf8fda875341cc970974db9db0bc51M.jpg',
+      alt: 'Type C Smartphone Universal IR Remote',
+      description: 'Transform your Type C smartphone into a universal smart remote with this compact infrared transmitter. Control TVs, ACs, projectors, and set-top boxes via a simple app. Portable and easy to use, making smart home control effortless.'
+    },
+    // Add more products here over time
+  ];
+
+  // --- ELEMENTS ---
+  const searchInput = document.getElementById('searchInput');
+  const grid = document.getElementById('productGrid');
+  const paginationContainer = document.getElementById('pagination');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  // --- HELPERS ---
+  const totalPagesFor = (list) => Math.ceil(list.length / productsPerPage) || 1;
+
+  function buildCard(product) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.dataset.title = product.title;
+
+    const link = document.createElement('a');
+    link.href = product.url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.className = 'block bg-white rounded-xl shadow hover:shadow-lg overflow-hidden';
+
+    const imageWrap = document.createElement('div');
+    imageWrap.className = 'w-full aspect-square';
+
+    const img = document.createElement('img');
+    img.src = product.image;
+    img.alt = product.alt;
+    img.loading = 'lazy';
+    img.className = 'w-full h-full object-cover';
+    imageWrap.appendChild(img);
+
+    const content = document.createElement('div');
+    content.className = 'p-4';
+
+    const title = document.createElement('h2');
+    title.className = 'text-lg font-semibold mb-1';
+    title.textContent = product.title;
+
+    const desc = document.createElement('p');
+    desc.className = 'text-sm text-gray-500';
+    const descriptionText = product.description || '';
+    desc.textContent = descriptionText.length > 240
+      ? descriptionText.slice(0, 240) + '...'
+      : descriptionText;
+
+    content.appendChild(title);
+    content.appendChild(desc);
+
+    link.appendChild(imageWrap);
+    link.appendChild(content);
+    card.appendChild(link);
+
+    return card;
+  }
+
+  function renderProducts() {
+    const term = searchInput.value.toLowerCase();
+    filteredProducts = products.filter(product =>
+      product.title.toLowerCase().includes(term) ||
+      product.description.toLowerCase().includes(term)
+    );
+
+    const totalPages = totalPagesFor(filteredProducts);
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * productsPerPage;
+    const end = start + productsPerPage;
+    const pageItems = filteredProducts.slice(start, end);
+
+    grid.innerHTML = '';
+
+    if (!filteredProducts.length) {
+      const empty = document.createElement('p');
+      empty.className = 'col-span-full text-center text-gray-500';
+      empty.textContent = 'No products match your search yet. Check back soon for new additions.';
+      grid.appendChild(empty);
+      paginationContainer.style.display = 'none';
+      return;
+    }
+
+    pageItems.forEach(product => grid.appendChild(buildCard(product)));
+
+    if (totalPages <= 1) {
+      paginationContainer.style.display = 'none';
+    } else {
+      paginationContainer.style.display = 'flex';
+      prevBtn.disabled = currentPage === 1;
+      nextBtn.disabled = currentPage === totalPages;
+    }
+  }
+
+  // --- EVENTS ---
+  searchInput.addEventListener('input', () => {
+    currentPage = 1;
+    renderProducts();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      renderProducts();
+    }
+  });
+
+  nextBtn.addEventListener('click', () => {
+    const totalPages = totalPagesFor(filteredProducts);
+    if (currentPage < totalPages) {
+      currentPage++;
+      renderProducts();
+    }
+  });
+
+  // --- INITIALIZE ---
+  renderProducts();
+</script>
+
+</body>
+</html>
