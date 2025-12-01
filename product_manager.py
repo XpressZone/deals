@@ -6,13 +6,23 @@ Requires PyQt5 (pip install pyqt5). Run: python product_manager.py
 import json
 import re
 import sys
+from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
+
+import requests
 
 from PyQt5 import QtCore, QtWidgets
+try:
+    from PIL import Image, UnidentifiedImageError
+except ImportError:  # Pillow might not be installed
+    Image = None
+    UnidentifiedImageError = Exception
 
 
 INDEX_PATH = Path("index.html")
+IMAGES_DIR = Path("images")
+MAX_WIDTH = 350
 
 
 def load_file(path: Path) -> str:
@@ -69,6 +79,7 @@ def update_json_ld(content: str, product: dict) -> str:
         "position": len(data.get("itemListElement", [])) + 1,
         "url": product["url"],
         "name": product["title"],
+        "image": product["image"],
     }
     data.setdefault("itemListElement", []).append(item)
     data["numberOfItems"] = len(data["itemListElement"])
@@ -78,11 +89,77 @@ def update_json_ld(content: str, product: dict) -> str:
 
 
 def add_product(product: dict) -> None:
+    product = product.copy()
+    product["image"] = cache_image_as_webp(product["image"], product["title"])
+
     content = load_file(INDEX_PATH)
     content = update_products_js(content, product)
     content = update_json_ld(content, product)
     save_file(INDEX_PATH, content)
+    save_file(Path("404.html"), content)
     print(f"Added product: {product['title']}")
+
+
+def slugify(text: str) -> str:
+    text = re.sub(r"[^a-zA-Z0-9]+", "-", text.lower()).strip("-")
+    return text or "image"
+
+
+def fetch_image_bytes(image_url: str, accept_header: str) -> Tuple[bytes, str]:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://xpresszone.github.io/products/",
+        "Accept": accept_header,
+    }
+    try:
+        resp = requests.get(image_url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        return resp.content, resp.headers.get("Content-Type", "")
+    except requests.HTTPError as exc:
+        status = exc.response.status_code if exc.response else "no-status"
+        reason = exc.response.reason if exc.response else ""
+        body_snippet = exc.response.text[:300] if exc.response and exc.response.text else ""
+        print(f"[image-download] HTTP {status} for {image_url}: {reason}")
+        if body_snippet:
+            print(f"[image-download] body: {body_snippet}")
+        raise
+    except requests.RequestException as exc:
+        print(f"[image-download] Request error for {image_url}: {exc}")
+        raise
+
+
+def cache_image_as_webp(image_url: str, title: str) -> str:
+    if Image is None:
+        raise RuntimeError("Pillow is required to convert images to webp. Install with: pip install Pillow")
+
+    IMAGES_DIR.mkdir(exist_ok=True)
+    slug = slugify(title)
+    dest = IMAGES_DIR / f"{slug}.webp"
+
+    # First try without AVIF to avoid formats Pillow may not decode
+    accept_primary = "image/webp,image/jpeg,image/png,image/*;q=0.8,*/*;q=0.5"
+    data, content_type = fetch_image_bytes(image_url, accept_primary)
+
+    # If server still returns AVIF, try a secondary request with stricter accept
+    if "avif" in content_type.lower() or b"ftypavif" in data[:32]:
+        print(f"[image-download] Received AVIF, retrying with jpeg/png preference for {image_url}")
+        data, content_type = fetch_image_bytes(image_url, "image/jpeg,image/png,*/*;q=0.5")
+
+    try:
+        with Image.open(BytesIO(data)) as img:
+            img = img.convert("RGB")
+            if img.width > MAX_WIDTH:
+                new_height = max(1, int((MAX_WIDTH / float(img.width)) * img.height))
+                img = img.resize((MAX_WIDTH, new_height), Image.LANCZOS)
+            img.save(dest, "WEBP", quality=85, method=6)
+    except UnidentifiedImageError:
+        head = data[:80]
+        print(f"[image-download] Unidentified image for {image_url}")
+        print(f"[image-download] Content-Type: {content_type}")
+        print(f"[image-download] Bytes head (len={len(data)}): {head}")
+        raise
+
+    return str(dest).replace("\\", "/")
 
 
 class ProductForm(QtWidgets.QDialog):
