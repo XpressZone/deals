@@ -18,6 +18,7 @@ def _product_block(product: dict) -> str:
         "    {\n"
         f"      title: '{_escape_js(product['title'])}',\n"
         f"      url: '{_escape_js(product['url'])}',\n"
+        f"      realUrl: '{_escape_js(product['real_url'])}',\n"
         f"      image: '{_escape_js(product['image'])}',\n"
         f"      alt: '{_escape_js(product['alt'])}',\n"
         f"      description: '{_escape_js(product['description'])}'\n"
@@ -32,8 +33,11 @@ def update_products_js(content: str, product: dict) -> str:
     new_block = _product_block(product)
     object_pattern = re.compile(r"(?ms)^    \{\n(?:^      .*\n)+?^    \},?")
     for match in object_pattern.finditer(content):
-        url_match = re.search(r"(?m)^      url:\s*'((?:\\.|[^'])*)',", match.group(0))
-        if url_match and url_match.group(1).replace("\\'", "'") == product["url"]:
+        real_url_match = re.search(r"(?m)^      realUrl:\s*'((?:\\.|[^'])*)',", match.group(0))
+        affiliate_match = re.search(r"(?m)^      url:\s*'((?:\\.|[^'])*)',", match.group(0))
+        existing_key = real_url_match or affiliate_match
+        desired_key = product["real_url"] if real_url_match else product["url"]
+        if existing_key and existing_key.group(1).replace("\\'", "'") == desired_key:
             return content[:match.start()] + new_block + content[match.end():]
     return content.replace(PRODUCT_MARKER, new_block + "\n    " + PRODUCT_MARKER, 1)
 
@@ -52,11 +56,16 @@ def update_json_ld(content: str, product: dict) -> str:
         "@type": "ListItem",
         "position": 0,
         "url": product["url"],
+        "sameAs": product["real_url"],
         "name": product["title"],
         "image": product["image"],
     }
     existing_index = next(
-        (index for index, value in enumerate(items) if value.get("url") == product["url"]),
+        (
+            index for index, value in enumerate(items)
+            if (value.get("sameAs") or value.get("url")) == product["real_url"]
+            or (not value.get("sameAs") and value.get("url") == product["url"])
+        ),
         None,
     )
     if existing_index is None:

@@ -50,7 +50,7 @@ def update_json_ld(content: str, product: dict) -> str:
     return update_json_ld_document(content, product)
 
 
-def add_product(product: dict) -> None:
+def add_product(product: dict) -> dict:
     product = product.copy()
     product["image"] = cache_image_as_webp(product["image"], product["title"])
 
@@ -60,6 +60,7 @@ def add_product(product: dict) -> None:
     save_file(INDEX_PATH, content)
     save_file(Path("404.html"), content)
     print(f"Added product: {product['title']}")
+    return product
 
 
 def slugify(text: str) -> str:
@@ -141,6 +142,7 @@ class ProductForm(_DialogBase):
             '{\n'
             '  "title": "",\n'
             '  "url": "",\n'
+            '  "real_url": "",\n'
             '  "image": "",\n'
             '  "alt": "",\n'
             '  "description": ""\n'
@@ -151,7 +153,7 @@ class ProductForm(_DialogBase):
 
         self.preview_labels = {}
         preview_container = QtWidgets.QVBoxLayout()
-        for label_text in ["Title", "URL", "Image", "Alt", "Description"]:
+        for label_text in ["Title", "URL", "Real URL", "Image", "Alt", "Description"]:
             lbl = QtWidgets.QLabel(f"{label_text}: --")
             lbl.setOpenExternalLinks(True)
             lbl.setTextFormat(QtCore.Qt.RichText)
@@ -172,12 +174,12 @@ class ProductForm(_DialogBase):
 
     def validate(self, product: dict):
         errors = []
-        required_fields = ["title", "url", "image", "alt", "description"]
+        required_fields = ["title", "url", "real_url", "image", "alt", "description"]
         for key in required_fields:
             if not product.get(key, "").strip():
                 errors.append(f"{key} is required.")
 
-        for key in ["url", "image"]:
+        for key in ["url", "real_url", "image"]:
             value = product.get(key, "")
             if value and not re.match(r"^https?://", value, re.IGNORECASE):
                 errors.append(f"{key} must start with http:// or https://")
@@ -197,6 +199,7 @@ class ProductForm(_DialogBase):
         if product:
             set_label("title", product.get("title", ""))
             set_label("url", product.get("url", ""), link=True)
+            set_label("real url", product.get("real_url", ""), link=True)
             set_label("image", product.get("image", ""), link=True)
             set_label("alt", product.get("alt", ""))
             set_label("description", product.get("description", ""))
@@ -261,8 +264,8 @@ class ProductForm(_DialogBase):
             self.status.setText(f"Error: {exc}")
 
 
-def commit_product(title: str) -> None:
-    subprocess.run(["git", "add", "--", "index.html", "404.html", "images"], check=True)
+def commit_product(title: str, image_path: str) -> None:
+    subprocess.run(["git", "add", "--", "index.html", "404.html", image_path], check=True)
     diff = subprocess.run(["git", "diff", "--cached", "--quiet"], check=False)
     if diff.returncode == 0:
         print("Product already up to date; no commit created.")
@@ -281,14 +284,14 @@ def main():
 
     if args.json_file:
         product = json.loads(args.json_file.read_text(encoding="utf-8"))
-        required = ["title", "url", "image", "alt", "description"]
+        required = ["title", "url", "real_url", "image", "alt", "description"]
         missing = [field for field in required if not str(product.get(field, "")).strip()]
         if missing:
             raise ValueError(f"Missing required fields: {', '.join(missing)}")
         product = {field: str(product[field]).strip() for field in required}
-        add_product(product)
+        saved_product = add_product(product)
         if args.commit:
-            commit_product(product["title"])
+            commit_product(product["title"], saved_product["image"])
         return
 
     if QtWidgets is None:

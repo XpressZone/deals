@@ -6,6 +6,7 @@ from product_core import update_json_ld, update_products_js
 PRODUCT = {
     "title": "Updated product",
     "url": "https://s.click.aliexpress.com/e/_same",
+    "real_url": "https://www.aliexpress.com/item/100500.html",
     "image": "images/updated.webp",
     "alt": "Updated alt",
     "description": "Updated description",
@@ -18,6 +19,7 @@ class ProductManagerTests(unittest.TestCase):
     {
       title: 'Old product',
       url: 'https://s.click.aliexpress.com/e/_same',
+      realUrl: 'https://www.aliexpress.com/item/100500.html',
       image: 'images/old.webp',
       alt: 'Old alt',
       description: 'Old description'
@@ -27,7 +29,7 @@ class ProductManagerTests(unittest.TestCase):
 
         updated = update_products_js(content, PRODUCT)
 
-        self.assertEqual(updated.count(PRODUCT["url"]), 1)
+        self.assertEqual(updated.count(PRODUCT["real_url"]), 1)
         self.assertIn("title: 'Updated product'", updated)
         self.assertNotIn("title: 'Old product'", updated)
 
