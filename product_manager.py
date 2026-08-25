@@ -5,6 +5,8 @@ Requires PyQt5 (pip install pyqt5). Run: python product_manager.py
 
 import json
 import re
+import argparse
+import subprocess
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -12,12 +14,19 @@ from typing import Optional, Tuple
 
 import requests
 
-from PyQt5 import QtCore, QtWidgets
+try:
+    from PyQt5 import QtCore, QtWidgets
+except ImportError:
+    QtCore = None
+    QtWidgets = None
 try:
     from PIL import Image, UnidentifiedImageError
 except ImportError:  # Pillow might not be installed
     Image = None
     UnidentifiedImageError = Exception
+
+from product_core import update_json_ld as update_json_ld_document
+from product_core import update_products_js as update_products_js_document
 
 
 INDEX_PATH = Path("index.html")
@@ -34,58 +43,11 @@ def save_file(path: Path, content: str) -> None:
 
 
 def update_products_js(content: str, product: dict) -> str:
-    """Insert a new product object before the in-file marker comment."""
-    marker = "// Add more products here over time"
-    if marker not in content:
-        raise ValueError("Marker comment for product insertion not found.")
-
-    def esc(value: str) -> str:
-        return (
-            value.replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\n", " ")
-            .strip()
-        )
-
-    product_block = (
-        "    {\n"
-        f"      title: '{esc(product['title'])}',\n"
-        f"      url: '{esc(product['url'])}',\n"
-        f"      image: '{esc(product['image'])}',\n"
-        f"      alt: '{esc(product['alt'])}',\n"
-        f"      description: '{esc(product['description'])}'\n"
-        "    },\n"
-    )
-
-    updated = content.replace(marker, product_block + "    " + marker, 1)
-    updated = re.sub(r"}\s*(// Add more products here over time)", "},\n    \\1", updated, count=1)
-    return updated
+    return update_products_js_document(content, product)
 
 
 def update_json_ld(content: str, product: dict) -> str:
-    """Append product to JSON-LD ItemList and update numberOfItems."""
-    match = re.search(
-        r'<script type="application/ld\+json">\s*(\{[\s\S]*?\})\s*</script>',
-        content,
-    )
-    if not match:
-        raise ValueError("JSON-LD block not found.")
-
-    schema_str = match.group(1)
-    data = json.loads(schema_str)
-
-    item = {
-        "@type": "ListItem",
-        "position": len(data.get("itemListElement", [])) + 1,
-        "url": product["url"],
-        "name": product["title"],
-        "image": product["image"],
-    }
-    data.setdefault("itemListElement", []).append(item)
-    data["numberOfItems"] = len(data["itemListElement"])
-
-    new_schema = json.dumps(data, indent=2)
-    return content.replace(schema_str, new_schema, 1)
+    return update_json_ld_document(content, product)
 
 
 def add_product(product: dict) -> None:
@@ -162,8 +124,13 @@ def cache_image_as_webp(image_url: str, title: str) -> str:
     return str(dest).replace("\\", "/")
 
 
-class ProductForm(QtWidgets.QDialog):
+_DialogBase = QtWidgets.QDialog if QtWidgets else object
+
+
+class ProductForm(_DialogBase):
     def __init__(self):
+        if QtWidgets is None:
+            raise RuntimeError("PyQt5 is required for the product manager GUI.")
         super().__init__()
         self.setWindowTitle("Add Product to index.html")
         layout = QtWidgets.QFormLayout(self)
@@ -294,9 +261,38 @@ class ProductForm(QtWidgets.QDialog):
             self.status.setText(f"Error: {exc}")
 
 
+def commit_product(title: str) -> None:
+    subprocess.run(["git", "add", "--", "index.html", "404.html", "images"], check=True)
+    diff = subprocess.run(["git", "diff", "--cached", "--quiet"], check=False)
+    if diff.returncode == 0:
+        print("Product already up to date; no commit created.")
+        return
+    subprocess.run(["git", "commit", "-m", f"Add product: {title}"], check=True)
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--json-file", type=Path, help="Add/update one product from a JSON file")
+    parser.add_argument("--commit", action="store_true", help="Commit the product files after updating")
+    args = parser.parse_args()
     if not INDEX_PATH.exists():
         print("index.html not found next to this script.")
+        sys.exit(1)
+
+    if args.json_file:
+        product = json.loads(args.json_file.read_text(encoding="utf-8"))
+        required = ["title", "url", "image", "alt", "description"]
+        missing = [field for field in required if not str(product.get(field, "")).strip()]
+        if missing:
+            raise ValueError(f"Missing required fields: {', '.join(missing)}")
+        product = {field: str(product[field]).strip() for field in required}
+        add_product(product)
+        if args.commit:
+            commit_product(product["title"])
+        return
+
+    if QtWidgets is None:
+        print("PyQt5 is required for GUI mode. Use --json-file for automation.")
         sys.exit(1)
 
     app = QtWidgets.QApplication(sys.argv)
