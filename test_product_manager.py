@@ -33,6 +33,33 @@ class ProductManagerTests(unittest.TestCase):
         self.assertIn("title: 'Updated product'", updated)
         self.assertNotIn("title: 'Old product'", updated)
 
+    def test_collapses_indented_duplicate_cards_by_parameter_free_real_url(self):
+        content = """const products = [
+        {
+      title: 'First duplicate',
+      url: 'https://s.click.aliexpress.com/e/_old',
+      realUrl: 'https://www.aliexpress.com/item/100500.html?spm=old',
+      image: 'images/first.webp',
+      alt: 'First',
+      description: 'First'
+    },
+        {
+      title: 'Second duplicate',
+      url: 'https://s.click.aliexpress.com/e/_new',
+      realUrl: 'https://www.aliexpress.com/item/100500.html',
+      image: 'images/second.webp',
+      alt: 'Second',
+      description: 'Second'
+    },
+    // Add more products here over time
+];"""
+
+        updated = update_products_js(content, PRODUCT)
+
+        self.assertEqual(updated.count("item/100500.html"), 1)
+        self.assertIn("title: 'Updated product'", updated)
+        self.assertNotIn("duplicate", updated)
+
     def test_updates_existing_json_ld_item_and_keeps_positions(self):
         content = """<script type="application/ld+json">
 {"numberOfItems": 2, "itemListElement": [
